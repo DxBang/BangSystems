@@ -8,27 +8,28 @@ _Version 4.y.z_
 public/index.php
 ```php
 <?php
-$_ENV['REQUEST_TIME_FLOAT'] = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(1); # benchmark
-define('ROOT', dirname(__DIR__));
-define('PUBLIC', ROOT.'/public');
-define('PRIVATE', ROOT.'/private');
-define('VENDOR', PRIVATE.'/vendor');
-define('UI', PUBLIC.'/ui');
+$_SERVER['REQUEST_TIME_FLOAT'] = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(1); # benchmark
+define('SITE_ROOT', dirname(__DIR__));
+define('SITE_PUBLIC', SITE_ROOT.'/public');
+define('SITE_PRIVATE', SITE_ROOT.'/private');
+define('SITE_VENDOR', SITE_PRIVATE.'/vendor');
+define('SITE_UI', SITE_PUBLIC.'/ui');
 define('WEB_UI', '/ui');
+define('BANG_DEBUG_MARKS', true);
 
 require_once '/srv/src/bang/v4/bang.php';
-switch (\Bang\Core::URI(0)) {
+switch (\Bang\Core::path(0)) {
 	case 'api':
-		$bang = new Bang\API();
+		new \Bang\API();
 	break;
 	case 'image':
-		$bang = new Bang\ImageAPI();
+		new \Bang\ImageAPI();
 	break;
 	case 'video':
-		$bang = new Bang\VideoAPI();
+		new \Bang\VideoAPI();
 	break;
-	default
-		$bang = new Bang\Website();
+	default:
+		new \Bang\Website();
 	break;
 }
 ```

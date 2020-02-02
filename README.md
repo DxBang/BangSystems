@@ -1,7 +1,7 @@
 # BangSystems
-Bang.Systems PHP Framework 
-**built with security in mind** 
-_Version 4.y.z_ 
+Bang.Systems PHP Framework  
+**built with security in mind**  
+_Version 4.y.z_  
 
 
 ## getting started

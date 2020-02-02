@@ -1,0 +1,23 @@
+{
+    "breadcrumbs.enabled": true,
+    "editor.renderControlCharacters": true,
+    "editor.renderWhitespace": "none",
+    "files.autoSave": "off",
+    "files.eol": "\n",
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.colorTheme": "Community Material Theme Darker High Contrast",
+    "intelephense.format.enable": false,
+    "terminal.integrated.shell.windows": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "php.suggest.basic": true,
+    "php.executablePath": "E:\\bin\\php74\\php.exe",
+    "intelephense.environment.documentRoot": "./public/",
+    "intelephense.environment.includePaths": [
+        "/srv/src/bang/v3",
+        "w:/src/bang/v3"
+    ],
+    "editor.renderLineHighlight": "all",
+    "python.autoComplete.extraPaths": [],
+    "python.pythonPath": "E:\\bin\\python3\\python.exe",
+    "editor.insertSpaces": false,
+    "php.memoryLimit": "4096M"
+}

@@ -12,11 +12,14 @@ define('BANG_UI',				BANG_ROOT.'/ui');
 define('BANG_DATA',				BANG_ROOT.'/data');
 define('BANG_VENDOR',			BANG_ROOT.'/vendor');
 define('BANG_VERSION',			'4.0.0');
-define('BANG_CODENAME',			'Peregrine Falcon');
+define('BANG_CODENAME',			'Blue Lightning');
 
-define('BANG_CONTROL',			SITE_PRIVATE.'/controllers');
-define('BANG_MODEL',			SITE_PRIVATE.'/models');
-define('BANG_VIEW',				SITE_PRIVATE.'/views');
+if (!defined('SITE_CONTROLLERS'))
+	define('SITE_CONTROLLERS',		SITE_PRIVATE.'/controllers');
+if (!defined('SITE_MODELS'))
+	define('SITE_MODELS',			SITE_PRIVATE.'/models');
+if (!defined('SITE_VIEWS'))
+	define('SITE_VIEWS',			SITE_PRIVATE.'/views');
 
 define('JSON_ENCODE_SETTINGS',	JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 define('DATE_SQL', 				'Y-m-d H:i:s');

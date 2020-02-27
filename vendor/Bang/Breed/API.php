@@ -1,6 +1,6 @@
 <?php
 namespace Bang\Breed;
 
-class API extends \Bang\Bang {
+class API extends \Bang\Breed {
 	
 }

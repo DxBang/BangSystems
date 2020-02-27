@@ -1,5 +1,5 @@
 <?php
-namespace Bang;
+namespace Bang\Format;
 
 class JSON {
 	

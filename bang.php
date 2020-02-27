@@ -12,7 +12,7 @@ define('BANG_UI',				BANG_ROOT.'/ui');
 define('BANG_DATA',				BANG_ROOT.'/data');
 define('BANG_VENDOR',			BANG_ROOT.'/vendor');
 define('BANG_VERSION',			'4.0.0');
-define('BANG_CODENAME',			'Blue Lightning');
+define('BANG_CODENAME',			'OpenWorld v1.0');
 
 if (!defined('SITE_CONTROLLERS'))
 	define('SITE_CONTROLLERS',		SITE_PRIVATE.'/controllers');
@@ -24,8 +24,10 @@ if (!defined('SITE_VIEWS'))
 define('JSON_ENCODE_SETTINGS',	JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 define('DATE_SQL', 				'Y-m-d H:i:s');
 
-/*
+
 set_error_handler(function (int $code, string $error, string $file, int $line, array $context) {
+	throw new Error($error, $code);
+	/*
 	echo '<dl class="form">'
 		.'<dt>code</dt><dd>'.$code.'</dd>'
 		.'<dt>error</dt><dd>'.$error.'</dd>'
@@ -35,22 +37,29 @@ set_error_handler(function (int $code, string $error, string $file, int $line, a
 	print_r($context);
 	echo '</pre></dd>'
 		.'</dl>';
+	*/
 	return true;
 }, E_ALL);
-*/
+
 spl_autoload_register(function ($class) {
 	if (defined('SITE_VENDOR')) {
-		$file = constant('SITE_VENDOR').DIRECTORY_SEPARATOR.str_replace('\\', DIRECTORY_SEPARATOR, $class).'.php';
+		$file = constant('SITE_VENDOR').
+			DIRECTORY_SEPARATOR.
+			str_replace('\\', DIRECTORY_SEPARATOR, $class).
+			'.php';
 		if (file_exists($file)) {
-			require_once($file);
-			\Bang\Core::mark($file);
+			require_once $file;
+			\Bang\Bang::mark($file);
 			return;
 		}
 	}
-	$file = constant('BANG_VENDOR').DIRECTORY_SEPARATOR.str_replace('\\', DIRECTORY_SEPARATOR, $class).'.php';
+	$file = constant('BANG_VENDOR').
+		DIRECTORY_SEPARATOR.
+		str_replace('\\', DIRECTORY_SEPARATOR, $class).
+		'.php';
 	if (file_exists($file)) {
-		require_once($file);
-		\Bang\Core::mark($file);
+		require_once $file;
+		\Bang\Bang::mark($file);
 		return;
 	}
 });
@@ -65,7 +74,7 @@ set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontex
     ];
 });
 
-if (\Bang\Core::isCLI()) {
+if (\Bang\Bang::isCLI()) {
 	echo 'Bang! v'.BANG_VERSION.PHP_EOL;
 	$_SERVER['HTTP_HOST']
 		= $_SERVER['HTTP_SERVER']
@@ -74,9 +83,7 @@ if (\Bang\Core::isCLI()) {
 }
 
 try {
-	if (!file_exists(SITE_PRIVATE.'/config.php')) throw new \Exception('missing config', 1);
-	include_once SITE_PRIVATE.'/config.php';
-	return new \Bang\Core($config);
+	return new \Bang\Bang(SITE_PRIVATE.'/configX.php');
 } catch (\Exception $e) {
 	new \Bang\Error($e);
 }

@@ -13,9 +13,21 @@ class Config {
 	}
 	static function install(string $configFile) {
 		try {
-			if (!file_exists($configFile)) throw new Error('missing config', 1);
+			echo 'Config::install('.$configFile.')'.PHP_EOL;
+			if (!file_exists($configFile)) throw new Error(
+				sprintf('missing config %s', $configFile),
+				200001
+			);
 			$config = include $configFile;
 			foreach ($config as $x => $y) {
+				switch ($x) {
+					case 'domain':
+						Bang::setupDomain($y);
+					break;
+					case 'host':
+						Bang::setupHost($y);
+					break;
+				}
 				self::set($x, $y);
 			}
 		}
@@ -30,7 +42,7 @@ class Config {
 		return self::has($x) ? self::$data->{$x} : null;
 	}
 	static function set(string $x, $y, string $z = null) {
-		if (!is_null($a))
+		if (!is_null($z))
 			return self::$data->{$x}->{$y} = $z;
 		return self::$data->{$x} = $y;
 	}

@@ -83,7 +83,7 @@ if (\Bang\Bang::isCLI()) {
 }
 
 try {
-	return new \Bang\Bang(SITE_PRIVATE.'/configX.php');
+	$bang = new \Bang\Bang(SITE_PRIVATE.'/config.php');
 } catch (\Exception $e) {
 	new \Bang\Error($e);
 }

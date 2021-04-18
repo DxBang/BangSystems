@@ -1,2 +1,10 @@
+.gitignore
+.git
+.idea
+.vscode
+*.mmdb
+*.sublime-project
+*.sublime-workspace
+sftp-config*.json
 *.jpg
 *.png

@@ -5,34 +5,35 @@ class Config {
 	protected static
 		$data;
 	function __construct(string $configFile) {
-		self::init();
+		#self::init();
+		self::$data = (object) [];
 		return self::install($configFile);
 	}
 	static function init() {
-		if (!is_object(self::$data)) self::$data = (object) [];
+		#if (!is_object(self::$data)) self::$data = (object) [];
 	}
 	static function install(string $configFile) {
 		try {
 			echo 'Config::install('.$configFile.')'.PHP_EOL;
-			if (!file_exists($configFile)) throw new Error(
+			if (!file_exists($configFile)) throw new \Error(
 				sprintf('missing config %s', $configFile),
-				200001
+				10002
 			);
-			$config = include $configFile;
-			foreach ($config as $x => $y) {
-				switch ($x) {
+			$config = (object) include $configFile;
+			foreach ($config as $k => $v) {
+				switch ($k) {
 					case 'domain':
-						Bang::setupDomain($y);
+						Core::setupDomain($v);
 					break;
 					case 'host':
-						Bang::setupHost($y);
+						Core::setupHost($v);
 					break;
 				}
-				self::set($x, $y);
+				self::set($k, $v);
 			}
 		}
 		catch (Error $e) {
-			#throw new Error($e);
+			throw new Error($e);
 		}
 	}
 	# Config::get('pdo', 'username')

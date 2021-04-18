@@ -11,70 +11,54 @@ define('BANG_ROOT',				__DIR__);
 define('BANG_UI',				BANG_ROOT.'/ui');
 define('BANG_DATA',				BANG_ROOT.'/data');
 define('BANG_VENDOR',			BANG_ROOT.'/vendor');
-define('BANG_VERSION',			'4.0.0');
+define('BANG_VERSION',			'4.0.0 Alpha-0');
 define('BANG_CODENAME',			'OpenWorld v1.0');
 
+if (!defined('SITE_PRIVATE')) {
+	throw new Error('Missing SITE_PRIVATE defined', 10000);
+}
 if (!defined('SITE_CONTROLLERS'))
-	define('SITE_CONTROLLERS',		SITE_PRIVATE.'/controllers');
+	define('SITE_CONTROLLERS',		constant('SITE_PRIVATE').'/controllers');
 if (!defined('SITE_MODELS'))
-	define('SITE_MODELS',			SITE_PRIVATE.'/models');
+	define('SITE_MODELS',			constant('SITE_PRIVATE').'/models');
 if (!defined('SITE_VIEWS'))
-	define('SITE_VIEWS',			SITE_PRIVATE.'/views');
+	define('SITE_VIEWS',			constant('SITE_PRIVATE').'/views');
+
 
 define('JSON_ENCODE_SETTINGS',	JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 define('DATE_SQL', 				'Y-m-d H:i:s');
 
 
-set_error_handler(function (int $code, string $error, string $file, int $line, array $context) {
+set_error_handler(function (int $code, string $error, string $file, int $line, array $context = null) {
+    $_ENV['errors'][] = [
+		$code,
+		$error,
+		$file,
+		$line,
+		$context,
+    ];
+	print_r((object) ['error' => [$error, $code, $file, $line, $context]]);
 	throw new Error($error, $code);
-	/*
-	echo '<dl class="form">'
-		.'<dt>code</dt><dd>'.$code.'</dd>'
-		.'<dt>error</dt><dd>'.$error.'</dd>'
-		.'<dt>file</dt><dd>'.$file.'</dd>'
-		.'<dt>line</dt><dd>'.$line.'</dd>'
-		.'<dt>context</dt><dd><pre>';
-	print_r($context);
-	echo '</pre></dd>'
-		.'</dl>';
-	*/
-	return true;
 }, E_ALL);
 
 spl_autoload_register(function ($class) {
-	if (defined('SITE_VENDOR')) {
-		$file = constant('SITE_VENDOR').
-			DIRECTORY_SEPARATOR.
-			str_replace('\\', DIRECTORY_SEPARATOR, $class).
-			'.php';
-		if (file_exists($file)) {
-			require_once $file;
-			\Bang\Bang::mark($file);
-			return;
+	foreach (['SITE_VENDOR', 'SITE_SHARED_VENDOR', 'BANG_VENDOR'] as $vendor) {
+		if (defined($vendor)) {
+			$file = constant($vendor).
+				DIRECTORY_SEPARATOR.
+				str_replace('\\', DIRECTORY_SEPARATOR, $class).
+				'.php';
+			if (file_exists($file)) {
+				require_once $file;
+				\Bang\Core::mark($file);
+				return;
+			}
 		}
 	}
-	$file = constant('BANG_VENDOR').
-		DIRECTORY_SEPARATOR.
-		str_replace('\\', DIRECTORY_SEPARATOR, $class).
-		'.php';
-	if (file_exists($file)) {
-		require_once $file;
-		\Bang\Bang::mark($file);
-		return;
-	}
 });
 
-set_error_handler(function($errno, $errstr, $errfile, $errline, array $errcontext) {
-    $_ENV['errors'][] = [
-		$errno,
-		$errstr,
-		$errfile,
-		$errline,
-		$errcontext,
-    ];
-});
 
-if (\Bang\Bang::isCLI()) {
+if (\Bang\Core::isCLI()) {
 	echo 'Bang! v'.BANG_VERSION.PHP_EOL;
 	$_SERVER['HTTP_HOST']
 		= $_SERVER['HTTP_SERVER']
@@ -83,7 +67,12 @@ if (\Bang\Bang::isCLI()) {
 }
 
 try {
-	$bang = new \Bang\Bang(SITE_PRIVATE.'/config.php');
+	if (!defined('SITE_PRIVATE')) throw new Error('missing SITE_PRIVATE for config.php', 10001);
+	$bang = new \Bang\Core(constant('SITE_PRIVATE').'/config.php');
 } catch (\Exception $e) {
-	new \Bang\Error($e);
+	echo 'EXP: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	exit;
+} catch (\Error $e) {
+	echo 'ERR: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	exit;
 }

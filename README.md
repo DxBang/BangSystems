@@ -1,5 +1,5 @@
 # BangSystems
-Bang.Systems PHP Framework  
+Bang.Systems PHP8 Framework  
 **built with security in mind**  
 _Version 4.y.z_  
 
@@ -18,18 +18,18 @@ define('WEB_UI', '/ui');
 define('BANG_DEBUG_MARKS', true);
 
 require_once '/srv/src/bang/v4/bang.php';
-switch (\Bang\Core::path(0)) {
+switch (\Bang\Bang::path(0)) {
 	case 'api':
-		new \Bang\API();
+		new \Bang\System\API();
 	break;
 	case 'image':
-		new \Bang\ImageAPI();
+		new \Bang\System\Image();
 	break;
 	case 'video':
-		new \Bang\VideoAPI();
+		new \Bang\System\Video();
 	break;
 	default:
-		new \Bang\Website();
+		new \Bang\System\Website();
 	break;
 }
 ```

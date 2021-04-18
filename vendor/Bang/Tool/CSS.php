@@ -1,5 +1,5 @@
 <?php
-namespace Bang\Tools;
+namespace Bang\Tool;
 
 class CSS {
     

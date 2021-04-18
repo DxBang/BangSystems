@@ -1,16 +1,38 @@
 <?php
 namespace Bang;
 
+
 abstract class System {
-	static
-		$type = 'system';
+	private
+		$controller,
+		$view,
+		$model;
+
+	protected
+		$type;
 
     function __construct(string $configFile = null) {
-		echo ':start of \Bang\System'.PHP_EOL;
-		echo ':with configFile: '.$configFile.PHP_EOL;
-		return \Bang\Config::install($configFile);
+		echo 'Bang System: '.$this->type.PHP_EOL;
+		if ($configFile) {
+			if (!file_exists($configFile)) throw new Error('file not exists: '.$configFile, 500);
+			Config::install($configFile);
+		}
+
 	}
 	function __destruct() {
-		echo ':end of system'.PHP_EOL;
+		
+	}
+	function name(string $name):string {
+		return preg_replace('/[^a-z][^a-z0-9]+/', '', strtolower($name));
+	}
+	function load() {
+		if ($this->controller) {
+			throw new Error('controller is already loaded', 500);
+		}
+		$controller = $this->type.'/controller';
+
+	}
+	function run() {
+		
 	}
 }

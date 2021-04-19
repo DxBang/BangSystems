@@ -5,6 +5,6 @@
 *.mmdb
 *.sublime-project
 *.sublime-workspace
-sftp-config*.json
 *.jpg
 *.png
+sftp-config*.json

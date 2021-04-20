@@ -2,17 +2,27 @@
 namespace Bang\Internet;
 
 class HTTP {
-	protected static
+	/* protected */ static
 		$method,
 		$send,
 		$data,
 		$response,
 		$info,
 		$cookie,
-		$options,
+		$options = [],
 		$download,
 		$upload,
-		$curl;
+		$curl,
+		$postAs = 0,
+		$throw = 0;
+	const
+		THROW_NONE = 0,
+		THROW_ON_ERROR = 1,
+		THROW_ON_EXCEPTION = 2,
+		THROW_ON_ALL = 3,
+		POST_AS_FORM = 0,
+		POST_AS_JSON = 1,
+		POST_AS_STRING = 2;
 
 	function __construct() {
 		$this->init();
@@ -32,7 +42,7 @@ class HTTP {
 		self::$response = [];
 		self::$download = null;
 		self::$upload = [];
-		self::$options = [
+		foreach ([
 			CURLOPT_URL => null,
 			CURLOPT_FOLLOWLOCATION => true,
 			CURLOPT_MAXREDIRS => 10,
@@ -49,7 +59,6 @@ class HTTP {
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_COOKIESESSION => true,
 			CURLOPT_FORBID_REUSE => false,
-			CURLINFO_HEADER_OUT => true,
 			CURLOPT_CAINFO => '/etc/ssl/certs/ca-certificates.crt',
 			CURLOPT_CAPATH => '/etc/ssl/certs',
 			CURLOPT_FAILONERROR => false,
@@ -60,23 +69,10 @@ class HTTP {
 				}
 				return strlen($res);
 			},
-			/*
-			CURLOPT_WRITEFUNCTION => function ($ch, string $data) {
-				echo 'CURLOPT_WRITEFUNCTION: '.strlen($data).PHP_EOL;
-				print_r($ch);
-				
-				if (self::hasDownload()) {
-					file_put_contents(self::$download, $data, FILE_APPEND);
-				}
-				self::$data .= $data;
-				return strlen($data);
-			},
-			*/
-			/*
-			CURLOPT_READFUNCTION => function ($ch, $fp, int $len) {
-				return fgets($fp, $len);
-			},*/
-		];
+			CURLINFO_HEADER_OUT => true,
+		] as $k => $v) {
+			self::$options[$k] = $v;
+		}
 		return $this;
 	}
 	function option(int $curl_constant, mixed $value = null):object {
@@ -88,7 +84,8 @@ class HTTP {
 		return $this;
 	}
 	function reset():object {
-		curl_reset(self::$curl);
+		#curl_reset(self::$curl);
+		
 		#self::$options[CURLOPT_URL] = null;
 		#self::$options[CURLOPT_REFERER] = null;
 		#self::$options[CURLOPT_URL] = null;
@@ -108,6 +105,30 @@ class HTTP {
 		if (self::hasDownload()) {
 			self::$options[CURLOPT_FILE] = fopen(self::$download, 'w');
 		}
+		if (self::hasPostfields()) {
+			switch (self::$postAs) {
+				case self::POST_AS_FORM:
+					$this->header('Content-Type', 'multipart/form-data');
+				break;
+				case self::POST_AS_JSON:
+					$this->header('Accept', 'application/json');
+					$this->header('Content-Type', 'application/json', true);
+					#$this->header('Content-Type', 'multipart/mixed');
+					self::$options[CURLOPT_POSTFIELDS] = json_encode(self::$options[CURLOPT_POSTFIELDS], JSON_UNESCAPED_SLASHES);
+				break;
+				case self::POST_AS_STRING:
+					$this->header('Content-Type', 'text/plain');
+					self::$options[CURLOPT_POSTFIELDS] = self::queryString(self::$options[CURLOPT_POSTFIELDS], prefix: '');
+				break;
+			}
+			/*
+			curl -i -X POST
+				-H "Content-Type: multipart/mixed"
+				-F "blob=@/Users/username/Documents/bio.jpg"
+				-F "metadata={\"edipi\":123456789,\"firstName\":\"John\",\"lastName\":\"Smith\",\"email\":\"john.smith@gmail.com\"};type=application/json"
+				http://localhost:8080/api/v1/user/
+			*/
+		}
 		if (self::hasUpload()) {
 			if (self::hasPostfields()) {
 				foreach (self::$upload as $name => $upload) {
@@ -125,7 +146,7 @@ class HTTP {
 			self::$curl,
 			self::$options
 		);
-		curl_exec(self::$curl);
+		self::$data = curl_exec(self::$curl);
 		self::$info = (object) curl_getinfo(self::$curl);
 
 		curl_close(self::$curl);
@@ -140,7 +161,6 @@ class HTTP {
 		
 		return $this;
 	}
-
 	/* feature handles */
 	
 	function verify():object {
@@ -155,10 +175,20 @@ class HTTP {
 		return $this;
 	}
 	function download(string $download, bool $binary = true):object {
+		if (self::hasThrowOn(self::THROW_ON_ERROR)) {
+			$path = pathinfo($download, PATHINFO_DIRNAME);
+			if (!file_exists($path)) throw new \Error('missing download directory: '.$path, 404);
+			if (!is_dir($path)) throw new \Error('download destination is not a directory: '.$path, 406);
+			if (!is_writable($path)) throw new \Error('download directory is not writable: '.$path, 403);
+		}
 		self::$download = $download;
 		return $this;
 	}
 	function upload(string $upload, string $name = 'image', string $filename = null, string $contentType = null):object {
+		if (self::hasThrowOn(self::THROW_ON_ERROR)) {
+			if (!file_exists($upload)) throw new \Error('missing upload file: '.$upload, 404);
+			if (!is_readable($upload)) throw new \Error('cannot read file: '.$upload, 403);
+		}
 		if (empty($filename)) {
 			$filename = pathinfo($upload, PATHINFO_BASENAME);
 		}
@@ -243,18 +273,17 @@ class HTTP {
 		}
 		return $r;
 	}
+
 	/* error/exception */
-	function throwOnError():object {
-		if (empty(self::$options[CURLOPT_URL])) throw new \Error('missing url');
-		if (self::hasDownload()) {
-			if (!file_exists(self::$download)) throw new \Error('cannot find downloaded file...', 400);
-			if (!is_readable(self::$download)) throw new \Error('cannot read downloaded file...', 400);
-		}
+	function throwOn(int $throw):object {
+		#self::$throw |= $throw;
+		self::$throw = $throw;
 		return $this;
 	}
-	function throwOnException():object {
-		
-		return $this;
+	static function hasThrowOn(int $throw):bool {
+		if ($throw)
+			return ((self::$throw & $throw) === $throw);
+		return (self::$throw === $throw);
 	}
 
 	/* response handles */
@@ -279,21 +308,38 @@ class HTTP {
 	}
 
 	/* request handles */
-	function header(string|array $header, string $value = null, bool $append = true):object {
+	function postAs(int $postAs):object {
+		self::$postAs = $postAs;
+		return $this;
+	}
+	static function isPostAs(int $postAs):bool {
+		if ($postAs)
+			return ((self::$postAs & $postAs) === $postAs);
+		return (self::$postAs === $postAs);
+	}
+	function header(string|array $header, string $value = null, bool $overwrite = false):object {
 		if (is_array($header)) {
 			foreach ($header as $k => $v) {
 				$this->header(
 					$v,
-					append: $k ? (bool) $k : $append
+					overwrite: $overwrite
 				);
 			}
 			return $this;
 		}
 		if (empty($value) && preg_match('/^([\w\-]+)[:|=][\s]{0,}(.*)$/', $header, $m)) {
-			return $this->header($m[1], $m[2], $append);
+			return $this->header($m[1], $m[2], $overwrite);
 		}
-		if ($append) {
-			self::$options[CURLOPT_HTTPHEADER][] = "{$header}: {$value}";
+		if ($overwrite) {
+			foreach (self::$options[CURLOPT_HTTPHEADER] as $k => $v) {
+				if (preg_match('/^'.preg_quote(strtolower($header)).':/', $v)) {
+					self::$options[CURLOPT_HTTPHEADER][$k] = "{$header}: {$value}";
+					$overwrite = false;
+				}
+			}
+			if ($overwrite) {
+				self::$options[CURLOPT_HTTPHEADER][] = "{$header}: {$value}";
+			}
 			return $this;
 		}
 		self::$options[CURLOPT_HTTPHEADER] = ["{$header}: {$value}"];
@@ -343,30 +389,76 @@ class HTTP {
 	}
 	function get(string $url, array|object $get = null):object {
 		self::$method = 'GET';
-		self::$options[CURLOPT_URL] = $url;
+		self::$options[CURLOPT_URL] = self::_makeUrl($url, $get);
 		self::$send->primary = $get;
 		return $this->_execute();
 	}
-	function post(string $url, array|object $post = null):object {
+	function post(string $url, array|object $post = null, int $postAs = null):object {
 		self::$method = 'POST';
 		self::$options[CURLOPT_POST] = 1;
 		self::$options[CURLOPT_POSTFIELDS] = (array) $post;
 		self::$options[CURLOPT_URL] = $url;
+		if (!is_null($postAs)) {
+			$this->postAs($postAs);
+		}
 		self::$send->secondary = $post;
 		return $this->_execute();
 	}
-	function go(string $url, array|object $get = null, array|object $post = null):object {
+	function go(string $url, array|object $get = null, array|object $post = null, int $postAs = null):object {
 		self::$method = 'GET';
-		self::$options[CURLOPT_URL] = $url;
+		self::$options[CURLOPT_URL] = self::_makeUrl($url, $get);
 		if ($get) {
 			self::$send->primary = $get;
 		}
 		if ($post) {
 			self::$method = 'POST';
 			self::$options[CURLOPT_POST] = 1;
+			self::$options[CURLOPT_POSTFIELDS] = (array) $post;
 			self::$send->secondary = $post;
+			if (!is_null($postAs)) {
+				$this->postAs($postAs);
+			}
 		}
 		return $this->_execute();
+	}
+	private static function _makeUrl(string $url, array|object $get = null):string {
+		$u = explode('?', explode('#', $url)[0]);
+		$r = $u[0];
+		if (!empty($u[1])) {
+			parse_str($u[1], $p);
+			$get = array_merge($p, $get);
+		}
+		if ($get) {
+			$r .= self::queryString($get);
+		}
+		return $r;
+	}
+
+	static function queryString(array|object $query, string $prefix = '?'):string {
+		if (empty($query)) return '';
+		$r = $prefix;
+		$i = 0;
+		foreach ($query as $k => $v) {
+			if ($i) $r .= '&';
+			switch (strtolower(gettype($v))) {
+				case 'null':
+					$r .= urlencode($k);
+				break;
+				case 'array':
+				case 'object':
+					$ai = 0;
+					foreach ($v as $ak => $av) {
+						if ($ai) $r .= '&';
+						$r .= urlencode($k.'['.$ak.']').'='.urlencode($av);
+						$ai++;
+					}
+				break;
+				default:
+					$r .= urlencode($k).'='.urlencode($v);
+			}
+			$i++;
+		}
+		return $r;
 	}
 
 	/* debug & info */
@@ -438,9 +530,14 @@ class HTTP {
 	function __debugInfo() {
 		return (array) [
 			'method' => self::$method,
-			'url' => self::$info->url,
+			'url' => self::$info->url ?? '',
 			'get' => self::$send->primary,
 			'post' => self::$send->secondary,
+			'postAs' => (object) [
+				'form' => self::isPostAs(self::POST_AS_FORM),
+				'json' => self::isPostAs(self::POST_AS_JSON),
+				'string' => self::isPostAs(self::POST_AS_STRING),
+			],
 			'info' => self::$info,
 			'response' => self::$response,
 			'data' => self::data(),

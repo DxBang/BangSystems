@@ -2,7 +2,7 @@
 namespace Bang\Internet;
 
 class HTTP {
-	/* protected */ static
+	protected static
 		$method,
 		$send,
 		$data,

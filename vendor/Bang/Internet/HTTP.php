@@ -3,8 +3,6 @@ namespace Bang\Internet;
 
 class HTTP {
 	protected static
-		$method,
-		$send,
 		$data,
 		$response,
 		$info,
@@ -26,22 +24,49 @@ class HTTP {
 
 	function __construct() {
 		$this->init();
-		$this->detaults();
+		$this->defaults();
 	}
 	/* curl handles */
 	private function init() {
-		self::$curl = curl_init();
+		if (!is_resource(self::$curl))
+			self::$curl = curl_init();
 	}
-	function detaults():object {
-		self::$send = (object) [
-			'primary' => null,
-			'secondary' => null,
-		];
+	function close():object {
+		if (is_resource(self::$curl))
+			curl_close(self::$curl);
+		return $this;
+	}
+	function reset():object {
+		return $this
+			->close()
+			->init()
+			->defaults();
+	}
+	function clean():object {
 		self::$data = '';
 		self::$cookie = (object) [];
 		self::$response = [];
 		self::$download = null;
 		self::$upload = [];
+		foreach ([
+			CURLOPT_POST,
+			CURLOPT_POSTFIELDS
+		] as $v) {
+			if (isset(self::$options[$v])) {
+				unset(self::$options[$v]);
+			}
+		}
+		foreach ([
+			CURLOPT_HTTPHEADER,
+		] as $v) {
+			if (isset(self::$options[$v])) {
+				self::$options[$v] = [];
+			}
+		}
+		return $this;
+	}
+	function defaults():object {
+		$this->clean();
 		foreach ([
 			CURLOPT_URL => null,
 			CURLOPT_FOLLOWLOCATION => true,
@@ -79,29 +104,7 @@ class HTTP {
 		self::$options[$curl_constant] = $value;
 		return $this;
 	}
-	function close():object {
-		curl_close(self::$curl);
-		return $this;
-	}
-	function reset():object {
-		#curl_reset(self::$curl);
-		
-		#self::$options[CURLOPT_URL] = null;
-		#self::$options[CURLOPT_REFERER] = null;
-		#self::$options[CURLOPT_URL] = null;
-		return $this;
-	}
-	function hardReset():object {
-		curl_close(self::$curl);
-		$this->init();
-		$this->detaults();
-		return $this;
-	}
 	private function _execute():object {
-		if (self::$curl) {
-			$this->close();
-		}
-		$this->init();
 		if (self::hasDownload()) {
 			self::$options[CURLOPT_FILE] = fopen(self::$download, 'w');
 		}
@@ -117,7 +120,7 @@ class HTTP {
 					self::$options[CURLOPT_POSTFIELDS] = json_encode(self::$options[CURLOPT_POSTFIELDS], JSON_UNESCAPED_SLASHES);
 				break;
 				case self::POST_AS_STRING:
-					$this->header('Content-Type', 'text/plain');
+					$this->header('Content-Type', 'application/x-www-form-urlencoded');
 					self::$options[CURLOPT_POSTFIELDS] = self::queryString(self::$options[CURLOPT_POSTFIELDS], prefix: '');
 				break;
 			}
@@ -148,17 +151,11 @@ class HTTP {
 		);
 		self::$data = curl_exec(self::$curl);
 		self::$info = (object) curl_getinfo(self::$curl);
-
-		curl_close(self::$curl);
 		if (self::hasDownload()) {
 			if (fclose(self::$options[CURLOPT_FILE])) {
 				self::$options[CURLOPT_FILE] = &self::$download;
 			}
 		}
-		return $this;
-	}
-	private function clean():object {
-		
 		return $this;
 	}
 	/* feature handles */
@@ -287,6 +284,9 @@ class HTTP {
 	}
 
 	/* response handles */
+	static function response():array {
+		return self::$response;
+	}
 	static function data():string {
 		if (self::hasDownload()) {
 			return file_get_contents(self::$download);
@@ -317,12 +317,21 @@ class HTTP {
 			return ((self::$postAs & $postAs) === $postAs);
 		return (self::$postAs === $postAs);
 	}
-	function header(string|array $header, string $value = null, bool $overwrite = false):object {
+	function header($header, string $value = null, bool $overwrite = false):object {
 		if (is_array($header)) {
 			foreach ($header as $k => $v) {
+				if (is_int($k)) {
+					$this->header(
+						$v,
+						null,
+						$overwrite
+					);
+					continue;
+				}
 				$this->header(
+					$k,
 					$v,
-					overwrite: $overwrite
+					$overwrite
 				);
 			}
 			return $this;
@@ -342,7 +351,7 @@ class HTTP {
 			}
 			return $this;
 		}
-		self::$options[CURLOPT_HTTPHEADER] = ["{$header}: {$value}"];
+		self::$options[CURLOPT_HTTPHEADER][] = "{$header}: {$value}";
 		return $this;
 	}
 	function cookie(string $cookie, string $value = null):object {
@@ -388,33 +397,24 @@ class HTTP {
 		return $this;
 	}
 	function get(string $url, array|object $get = null):object {
-		self::$method = 'GET';
 		self::$options[CURLOPT_URL] = self::_makeUrl($url, $get);
-		self::$send->primary = $get;
+		self::$options[CURLOPT_POST] = false;
 		return $this->_execute();
 	}
 	function post(string $url, array|object $post = null, int $postAs = null):object {
-		self::$method = 'POST';
-		self::$options[CURLOPT_POST] = 1;
+		self::$options[CURLOPT_POST] = true;
 		self::$options[CURLOPT_POSTFIELDS] = (array) $post;
 		self::$options[CURLOPT_URL] = $url;
 		if (!is_null($postAs)) {
 			$this->postAs($postAs);
 		}
-		self::$send->secondary = $post;
 		return $this->_execute();
 	}
 	function go(string $url, array|object $get = null, array|object $post = null, int $postAs = null):object {
-		self::$method = 'GET';
 		self::$options[CURLOPT_URL] = self::_makeUrl($url, $get);
-		if ($get) {
-			self::$send->primary = $get;
-		}
 		if ($post) {
-			self::$method = 'POST';
-			self::$options[CURLOPT_POST] = 1;
+			self::$options[CURLOPT_POST] = true;
 			self::$options[CURLOPT_POSTFIELDS] = (array) $post;
-			self::$send->secondary = $post;
 			if (!is_null($postAs)) {
 				$this->postAs($postAs);
 			}
@@ -426,7 +426,10 @@ class HTTP {
 		$r = $u[0];
 		if (!empty($u[1])) {
 			parse_str($u[1], $p);
-			$get = array_merge($p, $get);
+			$get = array_merge(
+				$p,
+				$get ?? []
+			);
 		}
 		if ($get) {
 			$r .= self::queryString($get);
@@ -529,10 +532,7 @@ class HTTP {
 	}
 	function __debugInfo() {
 		return (array) [
-			'method' => self::$method,
 			'url' => self::$info->url ?? '',
-			'get' => self::$send->primary,
-			'post' => self::$send->secondary,
 			'postAs' => (object) [
 				'form' => self::isPostAs(self::POST_AS_FORM),
 				'json' => self::isPostAs(self::POST_AS_JSON),

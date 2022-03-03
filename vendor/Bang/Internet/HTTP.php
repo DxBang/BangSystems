@@ -3,6 +3,7 @@ namespace Bang\Internet;
 
 class HTTP {
 	protected static
+		$error,
 		$data,
 		$response,
 		$info,
@@ -11,13 +12,15 @@ class HTTP {
 		$download,
 		$upload,
 		$curl,
+		$userAgent,
+		$encoding,
 		$postAs = 0,
 		$throw = 0;
 	const
 		THROW_NONE = 0,
-		THROW_ON_ERROR = 1,
-		THROW_ON_EXCEPTION = 2,
-		THROW_ON_ALL = 3,
+		THROW_ERROR = 1,
+		THROW_EXCEPTION = 2,
+		THROW_ALL = 3,
 		POST_AS_FORM = 0,
 		POST_AS_JSON = 1,
 		POST_AS_STRING = 2;
@@ -43,6 +46,7 @@ class HTTP {
 			->defaults();
 	}
 	function clean():object {
+		self::$error = null;
 		self::$data = '';
 		self::$cookie = (object) [];
 		self::$response = [];
@@ -74,10 +78,10 @@ class HTTP {
 			CURLOPT_AUTOREFERER => true,
 			CURLOPT_COOKIESESSION => true,
 			CURLOPT_DNS_CACHE_TIMEOUT => 30,
-			CURLOPT_CONNECTTIMEOUT => 5,
-			CURLOPT_TIMEOUT => 10,
-			CURLOPT_USERAGENT => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0 Bang/4.0',
-			CURLOPT_ENCODING => $_SERVER['HTTP_ENCODING'] ?? 'deflate, gzip',
+			CURLOPT_CONNECTTIMEOUT => 30,
+			CURLOPT_TIMEOUT => 30,
+			CURLOPT_USERAGENT => self::getUserAgent(),
+			CURLOPT_ENCODING => self::getEncoding(),
 			CURLOPT_HTTPHEADER => [],
 			CURLOPT_HEADER => false,
 			CURLOPT_SSL_VERIFYPEER => 1,
@@ -87,18 +91,19 @@ class HTTP {
 			CURLOPT_CAINFO => '/etc/ssl/certs/ca-certificates.crt',
 			CURLOPT_CAPATH => '/etc/ssl/certs',
 			CURLOPT_FAILONERROR => false,
-			CURLOPT_HEADERFUNCTION => function ($ch, $res) {
-				$head = trim($res);
-				if (strlen($head)) {
-					self::$response[] = $head;
-				}
-				return strlen($res);
-			},
+			CURLOPT_HEADERFUNCTION => [$this, '_headerFunction'],
 			CURLINFO_HEADER_OUT => true,
 		] as $k => $v) {
 			self::$options[$k] = $v;
 		}
 		return $this;
+	}
+	private static function _headerFunction($ch, $res) {
+		$head = trim($res);
+		if (strlen($head)) {
+			self::$response[] = $head;
+		}
+		return strlen($res);
 	}
 	function option(int $curl_constant, mixed $value = null):object {
 		self::$options[$curl_constant] = $value;
@@ -151,6 +156,15 @@ class HTTP {
 		);
 		self::$data = curl_exec(self::$curl);
 		self::$info = (object) curl_getinfo(self::$curl);
+		if ($errno = curl_errno(self::$curl)) {
+			self::$error = (object) [
+				'code' => $errno,
+				'message' => curl_error(self::$curl),
+			];
+			if (self::doThrowOn(self::THROW_ERROR)) {
+				throw new \Exception(self::$error->message, self::$error->code);
+			}
+		}
 		if (self::hasDownload()) {
 			if (fclose(self::$options[CURLOPT_FILE])) {
 				self::$options[CURLOPT_FILE] = &self::$download;
@@ -172,7 +186,7 @@ class HTTP {
 		return $this;
 	}
 	function download(string $download, bool $binary = true):object {
-		if (self::hasThrowOn(self::THROW_ON_ERROR)) {
+		if (self::doThrowOn(self::THROW_ERROR)) {
 			$path = pathinfo($download, PATHINFO_DIRNAME);
 			if (!file_exists($path)) throw new \Error('missing download directory: '.$path, 404);
 			if (!is_dir($path)) throw new \Error('download destination is not a directory: '.$path, 406);
@@ -182,7 +196,7 @@ class HTTP {
 		return $this;
 	}
 	function upload(string $upload, string $name = 'image', string $filename = null, string $contentType = null):object {
-		if (self::hasThrowOn(self::THROW_ON_ERROR)) {
+		if (self::doThrowOn(self::THROW_ERROR)) {
 			if (!file_exists($upload)) throw new \Error('missing upload file: '.$upload, 404);
 			if (!is_readable($upload)) throw new \Error('cannot read file: '.$upload, 403);
 		}
@@ -213,10 +227,37 @@ class HTTP {
 		self::$options[CURLOPT_SSL_VERIFYSTATUS] = false;
 		return $this;
 	}
+	function userAgent(string $userAgent):object {
+		self::$userAgent = $userAgent;
+		return $this;
+	}
+	function encoding(string $encoding):object {
+		self::$encoding = $encoding;
+		return $this;
+	}
+	static function getUserAgent():string {
+		if (!empty(self::$userAgent)) return self::$userAgent;
+		self::$userAgent = !empty($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Mozilla/5.0 Bang/4.0';
+		return self::$userAgent;
+	}
+	static function getEncoding():string {
+		if (self::$encoding) return self::$encoding;
+		self::$encoding = !empty($_SERVER['HTTP_ENCODING']) ? $_SERVER['HTTP_ENCODING'] : 'deflate, gzip';
+		return self::$encoding;
+	}
 
 	/* checks */
+	static function error() {
+		return self::$error;
+	}
 	static function isOK():bool {
-		return false;
+		if (self::doThrowOn(self::THROW_ERROR)) {
+			if (!is_null(self::$error)) throw new \Error(self::$error->message, self::$error->code);
+		}
+		if (self::doThrowOn(self::THROW_EXCEPTION)) {
+			if (!is_null(self::$error)) throw new \Exception(self::$error->message, self::$error->code);
+		}
+		return true;
 	}
 	static function isClientError():bool {
 		return false;
@@ -277,7 +318,7 @@ class HTTP {
 		self::$throw = $throw;
 		return $this;
 	}
-	static function hasThrowOn(int $throw):bool {
+	private static function doThrowOn(int $throw):bool {
 		if ($throw)
 			return ((self::$throw & $throw) === $throw);
 		return (self::$throw === $throw);
@@ -296,11 +337,13 @@ class HTTP {
 	static function json(bool $throw = true) {
 		if ($throw)
 			return json_decode(
-				json: self::data(),
-				flags: JSON_THROW_ON_ERROR,
+				self::data(),
+				null,
+				512,
+				JSON_THROW_ON_ERROR,
 			);
 		return json_decode(
-			json: self::data(),
+			self::data(),
 		);
 	}
 	static function dom():object {
@@ -312,7 +355,7 @@ class HTTP {
 		self::$postAs = $postAs;
 		return $this;
 	}
-	static function isPostAs(int $postAs):bool {
+	private static function doPostAs(int $postAs):bool {
 		if ($postAs)
 			return ((self::$postAs & $postAs) === $postAs);
 		return (self::$postAs === $postAs);
@@ -510,14 +553,22 @@ class HTTP {
 			CURLOPT_MAXREDIRS => 'Max Redirects',
 			CURLOPT_HEADERFUNCTION => 'Receive Headers',
 			CURLOPT_WRITEFUNCTION => 'Receive Data Function',
-			CURLOPT_WRITEFUNCTION => 'Receive Data Function',
 			CURLOPT_READFUNCTION => 'Send Data Function',
 			CURLOPT_FORBID_REUSE => 'Forbid Reuse',
 			CURLOPT_AUTOREFERER => 'Auto Referer',
 			CURLOPT_FAILONERROR => 'Fail On Error',
 		];
+		$f = [
+			CURLOPT_HEADERFUNCTION,
+			CURLOPT_WRITEFUNCTION,
+			CURLOPT_READFUNCTION,
+		];
 		$r = [];
 		foreach (self::$options as $k => $v) {
+			if (in_array($k, $f)) {
+				$r[$a[$k] ?? $k] = 'function()';
+				continue;
+			}
 			$r[$a[$k] ?? $k] = $v;
 		}
 		return $r;
@@ -534,9 +585,9 @@ class HTTP {
 		return (array) [
 			'url' => self::$info->url ?? '',
 			'postAs' => (object) [
-				'form' => self::isPostAs(self::POST_AS_FORM),
-				'json' => self::isPostAs(self::POST_AS_JSON),
-				'string' => self::isPostAs(self::POST_AS_STRING),
+				'form' => self::doPostAs(self::POST_AS_FORM),
+				'json' => self::doPostAs(self::POST_AS_JSON),
+				'string' => self::doPostAs(self::POST_AS_STRING),
 			],
 			'info' => self::$info,
 			'response' => self::$response,

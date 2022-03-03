@@ -7,6 +7,24 @@ mb_http_output('UTF-8');
 date_default_timezone_set('UTC');
 error_reporting(E_ALL); #  & ~E_NOTICE
 
+if (defined('SITE_ROOT')) {
+	if (file_exists(SITE_ROOT.'/.dev')) {
+		define('BANG_DEV', true);
+		define('BANG_DEV_DEBUG', E_ALL);
+		define('BANG_DEV_MARKS', true);
+		error_reporting(BANG_DEV_DEBUG);
+	}
+	else {
+		define('BANG_DEV', false);
+		define('BANG_DEV_DEBUG', E_ALL & ~E_NOTICE);
+		define('BANG_DEV_MARKS', false);
+		error_reporting(BANG_DEV_DEBUG);
+	}
+}
+else {
+	exit('SITE_ROOT definition is required');
+}
+
 define('BANG_ROOT',				__DIR__);
 define('BANG_UI',				BANG_ROOT.'/ui');
 define('BANG_DATA',				BANG_ROOT.'/data');
@@ -70,9 +88,19 @@ try {
 	if (!defined('SITE_PRIVATE')) throw new Error('missing SITE_PRIVATE for config.php', 10001);
 	$bang = new \Bang\Core(constant('SITE_PRIVATE').'/config.php');
 } catch (\Exception $e) {
-	echo 'EXP: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	if (BANG_DEV) {
+		echo 'EXP: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	}
+	else {
+		echo 'EXP: '.$e->getCode().' '.$e->getMessage();
+	}
 	exit;
 } catch (\Error $e) {
-	echo 'ERR: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	if (BANG_DEV) {
+		echo 'ERR: '.$e->getCode().' '.$e->getMessage().' in '.$e->getFile().' on '.$e->getLine();
+	}
+	else {
+		echo 'ERR: '.$e->getCode().' '.$e->getMessage();
+	}
 	exit;
 }

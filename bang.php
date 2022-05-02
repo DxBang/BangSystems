@@ -8,7 +8,7 @@ date_default_timezone_set('UTC');
 error_reporting(E_ALL); #  & ~E_NOTICE
 
 if (defined('SITE_ROOT')) {
-	if (file_exists(SITE_ROOT.'/.dev')) {
+	if (file_exists(constant('SITE_ROOT').'/.dev')) {
 		define('BANG_DEV', true);
 		define('BANG_DEV_DEBUG', E_ALL);
 		define('BANG_DEV_MARKS', true);

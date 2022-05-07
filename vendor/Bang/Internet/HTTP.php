@@ -3,6 +3,7 @@ namespace Bang\Internet;
 
 class HTTP {
 	protected static
+		$url,
 		$error,
 		$data,
 		$response,
@@ -31,12 +32,14 @@ class HTTP {
 	}
 	/* curl handles */
 	private function init() {
-		if (!is_resource(self::$curl))
+		if (is_null(self::$curl))
 			self::$curl = curl_init();
 	}
 	function close():object {
-		if (is_resource(self::$curl))
+		if (!is_null(self::$curl)) {
 			curl_close(self::$curl);
+			self::$curl = null;
+		}
 		return $this;
 	}
 	function reset():object {
@@ -421,6 +424,10 @@ class HTTP {
 		}
 		self::$options[CURLOPT_COOKIEFILE] = $file;
 		self::$options[CURLOPT_COOKIEJAR] = $jar;
+		return $this;
+	}
+	function url(string $url):object {
+		self::$url = new URL($url);
 		return $this;
 	}
 	function referer(string $url):object {
